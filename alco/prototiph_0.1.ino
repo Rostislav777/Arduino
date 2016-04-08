@@ -73,9 +73,6 @@ byte symbol_f[8] =
 };
 
 
-//Пин, отвечающий за подсветку дисплея
-#define BACKLIGHT_PIN 10
-
 unsigned int menu = 1;
 unsigned char lcd_buf[32];
 
