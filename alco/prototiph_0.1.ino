@@ -6,12 +6,18 @@
 #include <DallasTemperature.h>
 
 #define heater 11 //к этому выводу подключаем реле (шим управление)
+#define buzzer 13 //к этому выводу подключаем Buzzer
+#define mixer A5 //к этому выводу подключаем крутилку аналоговую
+int mixer_value_1;
+int mixer_value_2;
 int sens1_t;
 int sens2_t1_h;
 int sens2_t2_t;
 float readSens1;
 float readSens2;
 int interval=20; //min 30sec recomended for 18B20
+int head_state=1;
+int power_heater=100;
 
 char question [2][20] = {"Select sens1_t", "Sel. sens2_t1_h"};
 
@@ -112,7 +118,10 @@ int time_out;
 void setup()
 {	
 	lcd.begin(16, 2);
-	ds.begin();
+	ds.begin();	
+	pinMode(buzzer, OUTPUT);
+	//pinMode(mixer, INPUT);
+	digitalWrite(buzzer, LOW);
 	setPwmFrequency(heater, 1024); //division on 1024 for ~30Hz
 	lcd.clear();
 	menu;
@@ -261,33 +270,85 @@ void loop()
 		ds.requestTemperatures(); // считываем температуру с датчиков
 		readSens1 = ds.getTempCByIndex(0);
 
-		if (readSens1 >= sens2_t1_h)
+		if (head_state == 1)
 		{
-			analogWrite(heater, 0);
-			lcd.clear();
-			lcd.setCursor(4, 0);  
-			lcd.print("Mode 2");
-			lcd.setCursor(2, 1);  
-			lcd.print("Head FINISH");
-			delay(1000);
-			lcd.clear();
-			
-			//menu = 1;
-		}
-		if (readSens1 < sens2_t1_h)
-		{
-			analogWrite(heater, 255);
+			if (readSens1 >= sens2_t1_h)
+			{
+				analogWrite(heater, 0);
+				lcd.clear();
+				lcd.setCursor(4, 0);  
+				lcd.print("Mode 2");
+				lcd.setCursor(2, 1);  
+				lcd.print("Head_1 finish");
+				beep_end();
+				lcd.clear();
+				head_state = 2;
+				
+				//menu = 1;
+			}
+			if (readSens1 < sens2_t1_h)
+			{
+				analogWrite(heater, 255);
+			}
+			lcd.setCursor(0, 0);  
+			lcd.print("Mode2 Head_1");
+
+			lcd.setCursor(0, 1);  
+			lcd.print("Sensor 1: ");
+			lcd.print(ds.getTempCByIndex(0));
+			lcd.print("C");
 		}
 		
-		lcd.setCursor(0, 0);  
-		lcd.print("Mode2 Head START");
-
-		lcd.setCursor(0, 1);  
-		lcd.print("Sensor 1: ");
-		lcd.print(ds.getTempCByIndex(0));
-		lcd.print("C");
+		if (head_state == 2)
+		{
+			mixer_event();
+			analogWrite(heater, power_heater);
+			lcd.setCursor(0, 0);  
+			lcd.print("Mode2 Head_2");
+			
+			lcd.setCursor(0, 1);  
+			lcd.print("t1:");
+			lcd.print(ds.getTempCByIndex(0));
+			lcd.print("C ");
+			
+			lcd.setCursor(10, 1);
+			lcd.print("P:");
+			lcd.print(power_heater);
+			
+			if (menu == 3111)
+			{
+				menu = 321;
+			}
+			/*if (readSens1 >= sens2_t1_h)
+			{
+				analogWrite(heater, 0);
+				lcd.clear();
+				lcd.setCursor(4, 0);  
+				lcd.print("Mode 2");
+				lcd.setCursor(2, 1);  
+				lcd.print("Head FINISH");
+				beep_end();
+				lcd.clear();
+				head_state = 2;
+				
+				//menu = 1;
+			}
+			if (readSens1 < sens2_t1_h)
+			{
+				analogWrite(heater, 255);
+			}
+			*/
+		}
+		
+		
 	}
 	
+	//подменю Body Start
+	if (menu == 321)
+	{
+		lcd.setCursor(0, 0);  
+		lcd.print("Mode2 Body");
+	}
 	
 	//подменю Mode 1 Start
 	if(menu == 21)
@@ -303,7 +364,7 @@ void loop()
 			lcd.print("Mode 1");
 			lcd.setCursor(4, 1);  
 			lcd.print("FINISH");
-			delay(1000);
+			beep_end();
 			lcd.clear();
 			menu = 1;
 		}
@@ -548,4 +609,32 @@ int get_key(unsigned int input)
   }   
   if (k >= NUM_KEYS) k = -1; 
   return k;
+}
+
+void beep_end()
+{
+	for(int i=0; i<=3; i++)
+	{
+		digitalWrite(buzzer, HIGH);
+		delay(300);
+		digitalWrite(buzzer, LOW);
+		delay(300);
+	}	
+}
+
+void mixer_event()
+{
+	mixer_value_1 = analogRead(mixer);
+	delay(300);
+	mixer_value_2 = analogRead(mixer);
+	if (mixer_value_1 > mixer_value_2+3)
+	{
+		power_heater+=20;
+		lcd.clear();
+	}
+	if (mixer_value_1 < mixer_value_2-3)
+	{
+		power_heater-=20;
+		lcd.clear();
+	}
 }
