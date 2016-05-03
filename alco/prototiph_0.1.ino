@@ -10,16 +10,18 @@
 #define mixer A5 //к этому выводу подключаем крутилку аналоговую
 int mixer_value_1;
 int mixer_value_2;
-int sens1_t;
-int sens2_t1_h;
-int sens2_t2_t;
+int sens_t1;
+int sens_t1_h;
+int sens_t1_b;
+int sens_t2_b_low;
+int sens_t2_b_high;
 float readSens1;
 float readSens2;
 int interval=20; //min 30sec recomended for 18B20
 int head_state=1;
 int power_heater=100;
 
-char question [2][20] = {"Select sens1_t", "Sel. sens2_t1_h"};
+char question [5][20] = {"Select sens_t1", "Sel. sens_t1_h", "Sel. sens_t1_b", "Sel. sens_t2_b_low", "Sel. sens_t2_b_high",};
 
 
 OneWire oneWire(12);// вход датчиков 18b20
@@ -130,8 +132,12 @@ void setup()
 	//Адрес: 0-Длительность полива; 1-Задержка между поливами; 2-порог влажности почвы; 10-Длина SSID; 11-27-Символы SSID Wi-Fi;
 	//50-Длина Password Wi-Fi; 51-82-Символы Password Wi-Fi; 90-Длина Blynk auth-идентификатора; 91-122-символы Blynk auth-идентификатора
 	//EEPROM.write(0, 20);//Записываем в EEPROM новое значение
-	sens1_t	= EEPROM.read(0);//Считываем значение длительность полива из памяти EEPROM 0
-	sens2_t1_h	= EEPROM.read(1);//Считываем значение длительность полива из памяти EEPROM 0
+	sens_t1	= EEPROM.read(0);//Считываем значение срабатывания sens_t1
+	sens_t1_h	= EEPROM.read(1);//Считываем значение срабатывания sens_t1_h
+	sens_t1_b	= EEPROM.read(2);//Считываем значение срабатывания sens_t1_b
+	sens_t2_b_low	= EEPROM.read(3);//Считываем значение срабатывания sens_t2_b_low
+	sens_t2_b_high	= EEPROM.read(4);//Считываем значение срабатывания sens_t2_b_high
+	
 }
 
 void loop()
@@ -266,13 +272,19 @@ void loop()
 	
 	//подменю Head Start
 	if(menu == 311)
-	{
-		ds.requestTemperatures(); // считываем температуру с датчиков
-		readSens1 = ds.getTempCByIndex(0);
-
+	{	
+		if (head_state == 0)
+		{
+			lcd.setCursor(0, 0);  
+			lcd.print("Head_1  COMPLETE");
+			lcd.setCursor(2, 1);
+			lcd.print("Press select");
+		}
+		
 		if (head_state == 1)
 		{
-			if (readSens1 >= sens2_t1_h)
+			dsRead();
+			if (readSens1 >= sens_t1_h)
 			{
 				analogWrite(heater, 0);
 				lcd.clear();
@@ -282,25 +294,25 @@ void loop()
 				lcd.print("Head_1 finish");
 				beep_end();
 				lcd.clear();
-				head_state = 2;
-				
-				//menu = 1;
+				head_state = 0;
 			}
-			if (readSens1 < sens2_t1_h)
+			if (readSens1 < sens_t1_h)
 			{
 				analogWrite(heater, 255);
-			}
-			lcd.setCursor(0, 0);  
-			lcd.print("Mode2 Head_1");
+				lcd.setCursor(0, 0);  
+				lcd.print("Mode2 Head_1");
 
-			lcd.setCursor(0, 1);  
-			lcd.print("Sensor 1: ");
-			lcd.print(ds.getTempCByIndex(0));
-			lcd.print("C");
+				lcd.setCursor(0, 1);  
+				lcd.print("Sensor 1: ");
+				lcd.print(ds.getTempCByIndex(0));
+				lcd.print("C");
+			}
+			
 		}
 		
 		if (head_state == 2)
 		{
+			dsRead();
 			mixer_event();
 			analogWrite(heater, power_heater);
 			lcd.setCursor(0, 0);  
@@ -314,40 +326,81 @@ void loop()
 			lcd.setCursor(10, 1);
 			lcd.print("P:");
 			lcd.print(power_heater);
-			
-			if (menu == 3111)
-			{
-				menu = 321;
-			}
-			/*if (readSens1 >= sens2_t1_h)
-			{
-				analogWrite(heater, 0);
-				lcd.clear();
-				lcd.setCursor(4, 0);  
-				lcd.print("Mode 2");
-				lcd.setCursor(2, 1);  
-				lcd.print("Head FINISH");
-				beep_end();
-				lcd.clear();
-				head_state = 2;
-				
-				//menu = 1;
-			}
-			if (readSens1 < sens2_t1_h)
-			{
-				analogWrite(heater, 255);
-			}
-			*/
-		}
-		
-		
+		}	
+	}
+	
+	if (menu == 3111 && head_state == 0)
+	{
+		menu = 311;
+		head_state = 2;
+	}
+	if (menu == 3111 && head_state == 1)
+	{
+		menu = 311;
+	}
+	if (menu == 3111 && head_state == 2)
+	{
+		menu = 321;
+	}
+	//зацикливание подменю Head Start
+	if(menu > 311 && menu < 319)
+	{
+		menu = 311;
+	}
+	if(menu < 311 && menu > 309)
+	{
+		menu = 311;
 	}
 	
 	//подменю Body Start
 	if (menu == 321)
 	{
+		if (head_state == 2) //что бы не проскакивало при переходе из режима head
+		{
+			head_state == 1;
+			delay(100);
+		}
+		
+		ds.requestTemperatures(); // считываем температуру с датчиков
+		readSens1 = ds.getTempCByIndex(0);
+		readSens2 = ds.getTempCByIndex(1);
+		
 		lcd.setCursor(0, 0);  
-		lcd.print("Mode2 Body");
+		//lcd.print("M2_b");
+		lcd.print(power_heater);
+		lcd.setCursor(5, 0); 
+		lcd.print("t1=");
+		lcd.print(ds.getTempCByIndex(0));
+		lcd.print("/");
+		lcd.print(sens_t1_b);
+		lcd.setCursor(0, 1);  
+		lcd.print(sens_t2_b_low);
+		lcd.print("<t2=");
+		lcd.print(ds.getTempCByIndex(1));
+		lcd.print("<");
+		lcd.print(sens_t2_b_high);
+		
+		if (readSens1 >= sens_t1_b)
+		{
+			analogWrite(heater, 0);
+			lcd.clear();
+			lcd.setCursor(4, 0);  
+			lcd.print("Mode 2");
+			lcd.setCursor(2, 1);  
+			lcd.print("Body finish");
+			beep_end();
+			lcd.clear();
+			//head_state = 0;
+		}
+		
+		if (readSens2 <= sens_t2_b_low)
+		{
+			analogWrite(heater, 255);
+		}
+		if (readSens2 > sens_t2_b_low && readSens2 <= sens_t2_b_high)
+		{
+			power_heater = map(readSens2, sens_t2_b_low, sens_t2_b_high, 150, 200);
+		}
 	}
 	
 	//подменю Mode 1 Start
@@ -356,7 +409,7 @@ void loop()
 		ds.requestTemperatures(); // считываем температуру с датчиков
 		readSens1 = ds.getTempCByIndex(0);
 
-		if (readSens1 >= sens1_t)
+		if (readSens1 >= sens_t1)
 		{
 			analogWrite(heater, 0);
 			lcd.clear();
@@ -368,7 +421,7 @@ void loop()
 			lcd.clear();
 			menu = 1;
 		}
-		if (readSens1 < sens1_t)
+		if (readSens1 < sens_t1)
 		{
 			analogWrite(heater, 255);
 		}
@@ -420,9 +473,16 @@ void loop()
 		lcd.setCursor(0,0);
 		lcd.print("Mode 2 Settings");
 		lcd.setCursor(0,1);
-		lcd.print("Sens2 body setup");
+		lcd.print("Sens1 body setup");
 	}
 	if(menu == 53)
+	{
+		lcd.setCursor(0,0);
+		lcd.print("Mode 2 Settings");
+		lcd.setCursor(0,1);
+		lcd.print("Sens2 body setup");
+	}
+	if(menu == 54)
 	{
 		lcd.setCursor(0,0);
 		lcd.print("Mode 2 Settings");
@@ -430,13 +490,13 @@ void loop()
 		lcd.print("Sens1 Tails setup");
 	}
 	//зацикливание подменю Mode 2 Settings
-	if(menu > 53 && menu < 59)
+	if(menu > 54 && menu < 59)
 	{
 		menu = 51;
 	}
 	if(menu < 51 && menu > 59)
 	{
-		menu = 53;
+		menu = 54;
 	}
 	
 	//подменю Sens1 head setup
@@ -451,6 +511,75 @@ void loop()
 		} 
 		lcd.clear();
 		menu = 1;
+	}
+	
+	//подменю Sens1 body setup
+	if(menu == 521)
+	{
+		for (qNum = 2; qNum < 3; qNum++)
+		{
+			lcd.setCursor(0,0);
+			lcd.print(question[qNum]);
+			keyIn = 0;
+			sens1_tForSet();
+		} 
+		lcd.clear();
+		menu = 1;
+	}
+	
+	//подменю Sens2 body setup
+	if(menu == 531)
+	{
+		menu = 5311;
+	}
+	if(menu == 5311)
+	{
+		lcd.setCursor(0,0);
+		lcd.print("Sens2 body setup");
+		lcd.setCursor(0,1);
+		lcd.print("LOW level sensor");
+	}
+	if(menu == 5312)
+	{
+		lcd.setCursor(0,0);
+		lcd.print("Sens2 body setup");
+		lcd.setCursor(0,1);
+		lcd.print("HIGH level sens");
+	}
+	//зацикливание подменю 5311
+	if(menu > 5312 && menu < 5319)
+	{
+		menu = 5311;
+	}
+	if(menu < 5311 && menu > 5309)
+	{
+		menu = 5311;
+	}
+	
+	//подменю Sens2 body LOW/HIGH level sensor
+	if(menu == 53111)
+	{
+		for (qNum = 3; qNum < 4; qNum++)
+		{
+			lcd.setCursor(0,0);
+			lcd.print(question[qNum]);
+			keyIn = 0;
+			sens1_tForSet();
+		} 
+		lcd.clear();
+		menu = 5311;
+	}
+	if(menu == 53121)
+	{
+		for (qNum = 4; qNum < 5; qNum++)
+		{
+			lcd.setCursor(0,0);
+			lcd.print(question[qNum]);
+			keyIn = 0;
+			sens1_tForSet();
+		} 
+		lcd.clear();
+		menu = 5311;
 	}
 }
 
@@ -472,17 +601,25 @@ void move_possible()
 //Функция считывания датчиков ds18b20:
 void dsRead()
 {
-	ds.requestTemperatures(); // считываем температуру с датчиков
-	
-	lcd.setCursor(0, 0);  
-	lcd.print("Sensor 1: ");
-	lcd.print(ds.getTempCByIndex(0)); // отправляем температуру
-	lcd.print("C");
+	if (menu == 1)
+	{
+		ds.requestTemperatures(); // считываем температуру с датчиков
+		
+		lcd.setCursor(0, 0);  
+		lcd.print("Sensor 1: ");
+		lcd.print(ds.getTempCByIndex(0)); // отправляем температуру
+		lcd.print("C");
 
-	lcd.setCursor(0, 1);  
-	lcd.print("Sensor 2: ");
-	lcd.print(ds.getTempCByIndex(1));
-	lcd.print("C");
+		lcd.setCursor(0, 1);  
+		lcd.print("Sensor 2: ");
+		lcd.print(ds.getTempCByIndex(1));
+		lcd.print("C");
+	}
+	if (menu==311&&head_state==1 || menu==311&&head_state==2)
+	{
+		ds.requestTemperatures(); // считываем температуру с датчиков
+		readSens1 = ds.getTempCByIndex(0);
+	}
 }
 
 void setPwmFrequency(int pin, int divisor) 
@@ -503,18 +640,33 @@ void setPwmFrequency(int pin, int divisor)
 }
 
 //-----------------------------------
-//Функция настройки температуры срабатывания 1го датчика sens1_t
+//Функция настройки температуры срабатывания 1го датчика sens_t1
 void sens1_tForSet()
 {
-  switch (qNum) 
+	switch (qNum) 
 	{
-	  case 0:
-		tempVar = sens1_t; 
+	case 0:
+		tempVar = sens_t1; 
 		maxVar = 100; 
 		minVar = 20; 
 		break;
-	  case 1:
-		tempVar = sens2_t1_h; 
+	case 1:
+		tempVar = sens_t1_h; 
+		maxVar = 100; 
+		minVar = 20;
+		break;
+	case 2:
+		tempVar = sens_t1_b; 
+		maxVar = 100; 
+		minVar = 20;
+		break;
+	case 3:
+		tempVar = sens_t2_b_low; 
+		maxVar = 100; 
+		minVar = 20;
+		break;
+	case 4:
+		tempVar = sens_t2_b_high; 
 		maxVar = 100; 
 		minVar = 20;
 		break;
@@ -531,17 +683,24 @@ void sens1_tForSet()
 	adc_key_in = analogRead(0);   
 	key = get_key(adc_key_in);   
 	oldkey = key;
-
 	if (key == 4)
 	{ // SELECT button pressed
 		switch (qNum) 
 		{
-		  case 0:
-			sens1_t = tempVar; 
+		case 0:
+			sens_t1 = tempVar; 
 			break;
-		  case 1:
-			sens2_t1_h = tempVar;
-			//break;
+		case 1:
+			sens_t1_h = tempVar;
+			break;
+		case 2:
+			sens_t1_b = tempVar;
+			break;
+		case 3:
+			sens_t2_b_low = tempVar;
+			break;
+		case 4:
+			sens_t2_b_high = tempVar;
 		}
 		keyIn = 4;
 	} 
@@ -552,8 +711,12 @@ void sens1_tForSet()
 		lcd.setCursor(0,1);
 		displayVars();
 		//назначаем данные
-		EEPROM.write(0, sens1_t);//Записываем в EEPROM новое значение
-		EEPROM.write(1, sens2_t1_h);//Записываем в EEPROM новое значение
+		EEPROM.write(0, sens_t1);//Записываем в EEPROM новое значение
+		EEPROM.write(1, sens_t1_h);//Записываем в EEPROM новое значение
+		EEPROM.write(2, sens_t1_b);//Записываем в EEPROM новое значение
+		EEPROM.write(3, sens_t2_b_low);//Записываем в EEPROM новое значение
+		EEPROM.write(4, sens_t2_b_high);//Записываем в EEPROM новое значение
+		delay(500);
 	}
 	delay(50);
   }
@@ -562,14 +725,14 @@ void KeyLoop()
 {
 	switch (key) 
 	{
-		case 1: // UP button
+	case 1: // UP button
 		tempVar++;
 		if (tempVar > maxVar)
 		{
 			tempVar = minVar;
 		}
 		break;
-		case 2: // DOWN button 
+	case 2: // DOWN button 
 		tempVar--;
 		if (tempVar < minVar)
 		{
@@ -581,17 +744,27 @@ void displayVars()
 {
 	switch (qNum)
 	{
-	  case 0:
+	case 0:
 		move_possible();
 		lcd.setCursor(7, 1);
 		lcd.print(tempVar + spaceChar); 
 		break;
-	  case 1:
+	case 1:
 		move_possible();
 		lcd.setCursor(7, 1);
 		lcd.print(tempVar + spaceChar); 
 		break;
-	  case 2:
+	case 2:
+		move_possible();
+		lcd.setCursor(7, 1);
+		lcd.print(tempVar + spaceChar);
+		break;
+	case 3:
+		move_possible();
+		lcd.setCursor(7, 1);
+		lcd.print(tempVar + spaceChar);
+		break;
+	case 4:
 		move_possible();
 		lcd.setCursor(7, 1);
 		lcd.print(tempVar + spaceChar);
