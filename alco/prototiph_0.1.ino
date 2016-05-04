@@ -15,13 +15,23 @@ int sens_t1_h;
 int sens_t1_b;
 int sens_t2_b_low;
 int sens_t2_b_high;
+int sens_t1_tails;
 float readSens1;
 float readSens2;
 int interval=20; //min 30sec recomended for 18B20
 int head_state=1;
+int body_state=1;
 int power_heater=100;
 
-char question [5][20] = {"Select sens_t1", "Sel. sens_t1_h", "Sel. sens_t1_b", "Sel. sens_t2_b_low", "Sel. sens_t2_b_high",};
+char question [6][20] = 
+{
+"Select sens_t1", 
+"Sel. sens_t1_h",
+"Sel. sens_t1_b", 
+"Sel. sens_t2_b_low", 
+"Sel. sens_t2_b_high", 
+"Sel. sens_t1_tails"
+};
 
 
 OneWire oneWire(12);// вход датчиков 18b20
@@ -137,6 +147,7 @@ void setup()
 	sens_t1_b	= EEPROM.read(2);//Считываем значение срабатывания sens_t1_b
 	sens_t2_b_low	= EEPROM.read(3);//Считываем значение срабатывания sens_t2_b_low
 	sens_t2_b_high	= EEPROM.read(4);//Считываем значение срабатывания sens_t2_b_high
+	sens_t1_tails	= EEPROM.read(5);//Считываем значение срабатывания sens_t1_tails
 	
 }
 
@@ -303,9 +314,10 @@ void loop()
 				lcd.print("Mode2 Head_1");
 
 				lcd.setCursor(0, 1);  
-				lcd.print("Sensor 1: ");
+				lcd.print("Sens1: ");
 				lcd.print(ds.getTempCByIndex(0));
-				lcd.print("C");
+				lcd.print("/");
+				lcd.print(sens_t1_h);
 			}
 			
 		}
@@ -361,45 +373,98 @@ void loop()
 			delay(100);
 		}
 		
-		ds.requestTemperatures(); // считываем температуру с датчиков
-		readSens1 = ds.getTempCByIndex(0);
-		readSens2 = ds.getTempCByIndex(1);
-		
-		lcd.setCursor(0, 0);  
-		//lcd.print("M2_b");
-		lcd.print(power_heater);
-		lcd.setCursor(5, 0); 
-		lcd.print("t1=");
-		lcd.print(ds.getTempCByIndex(0));
-		lcd.print("/");
-		lcd.print(sens_t1_b);
-		lcd.setCursor(0, 1);  
-		lcd.print(sens_t2_b_low);
-		lcd.print("<t2=");
-		lcd.print(ds.getTempCByIndex(1));
-		lcd.print("<");
-		lcd.print(sens_t2_b_high);
-		
-		if (readSens1 >= sens_t1_b)
+		if (body_state == 1)
+		{
+			ds.requestTemperatures(); // считываем температуру с датчиков
+			readSens1 = ds.getTempCByIndex(0);
+			readSens2 = ds.getTempCByIndex(1);
+			
+			lcd.setCursor(0, 0);  
+			//lcd.print("M2_b"); //расскоментировать
+			lcd.print(power_heater); //закоментировать
+			lcd.setCursor(5, 0); 
+			lcd.print("t1=");
+			lcd.print(ds.getTempCByIndex(0));
+			lcd.print("/");
+			lcd.print(sens_t1_b);
+			lcd.setCursor(0, 1);  
+			lcd.print(sens_t2_b_low);
+			lcd.print("<t2=");
+			lcd.print(ds.getTempCByIndex(1));
+			lcd.print("<");
+			lcd.print(sens_t2_b_high);
+			
+			if (readSens1 >= sens_t1_b)
+			{
+				analogWrite(heater, 0);
+				lcd.clear();
+				lcd.setCursor(4, 0);  
+				lcd.print("Mode 2");
+				lcd.setCursor(2, 1);  
+				lcd.print("Body finish");
+				beep_end();
+				lcd.clear();
+				body_state = 0;
+			}
+			
+			if (readSens2 <= sens_t2_b_low)
+			{
+				power_heater = 255;
+				analogWrite(heater, power_heater);
+			}
+			if (readSens2 > sens_t2_b_low && readSens2 <= sens_t2_b_high)
+			{
+				int readSens2_mat = readSens2*100;
+				int sens_t2_b_low_mat = sens_t2_b_low*100;
+				int sens_t2_b_high_mat = sens_t2_b_high*100;
+				power_heater = map(readSens2_mat, sens_t2_b_low_mat, sens_t2_b_high_mat, 150, 200);
+			}
+		}
+		if (body_state == 0)
+		{
+			lcd.setCursor(0, 0);  
+			lcd.print("Body  COMPLETE");
+			lcd.setCursor(2, 1);
+			lcd.print("Press select");
+		}
+	}
+	if (menu == 3211 && body_state == 0)
+	{
+		menu = 331;
+		power_heater = 255;
+	}
+	
+	//подменю Tails Start
+	if (menu == 331)
+	{	
+		if (readSens1 < sens_t1_tails)
+		{
+			
+			dsRead();
+			mixer_event();
+			analogWrite(heater, power_heater);
+			lcd.setCursor(0, 0);  
+			lcd.print("Mode2 Tails");
+			lcd.print("P:");
+			lcd.print(power_heater);
+			
+			lcd.setCursor(3, 1);  
+			lcd.print("t1:");
+			lcd.print(ds.getTempCByIndex(0));
+			lcd.print("/");
+			lcd.print(sens_t1_tails);
+		}
+		if (readSens1 >= sens_t1_tails)
 		{
 			analogWrite(heater, 0);
 			lcd.clear();
 			lcd.setCursor(4, 0);  
 			lcd.print("Mode 2");
 			lcd.setCursor(2, 1);  
-			lcd.print("Body finish");
+			lcd.print("Tails finish");
 			beep_end();
 			lcd.clear();
 			//head_state = 0;
-		}
-		
-		if (readSens2 <= sens_t2_b_low)
-		{
-			analogWrite(heater, 255);
-		}
-		if (readSens2 > sens_t2_b_low && readSens2 <= sens_t2_b_high)
-		{
-			power_heater = map(readSens2, sens_t2_b_low, sens_t2_b_high, 150, 200);
 		}
 	}
 	
@@ -424,15 +489,17 @@ void loop()
 		if (readSens1 < sens_t1)
 		{
 			analogWrite(heater, 255);
-		}
-		
-		lcd.setCursor(0, 0);  
+			lcd.setCursor(0, 0);  
 		lcd.print("Mode 1 starting");
 
 		lcd.setCursor(0, 1);  
-		lcd.print("Sensor 1: ");
+		lcd.print("Sens1: ");
 		lcd.print(ds.getTempCByIndex(0));
-		lcd.print("C");
+		lcd.print("/");
+		lcd.print(sens_t1);
+		}
+		
+		
 	}
 
 	//зацикливание подменю Mode 1 Start
@@ -528,18 +595,15 @@ void loop()
 	}
 	
 	//подменю Sens2 body setup
+
 	if(menu == 531)
-	{
-		menu = 5311;
-	}
-	if(menu == 5311)
 	{
 		lcd.setCursor(0,0);
 		lcd.print("Sens2 body setup");
 		lcd.setCursor(0,1);
 		lcd.print("LOW level sensor");
 	}
-	if(menu == 5312)
+	if(menu == 532)
 	{
 		lcd.setCursor(0,0);
 		lcd.print("Sens2 body setup");
@@ -547,17 +611,17 @@ void loop()
 		lcd.print("HIGH level sens");
 	}
 	//зацикливание подменю 5311
-	if(menu > 5312 && menu < 5319)
+	if(menu > 532 && menu < 539)
 	{
-		menu = 5311;
+		menu = 531;
 	}
-	if(menu < 5311 && menu > 5309)
+	if(menu < 531 && menu > 529)
 	{
-		menu = 5311;
+		menu = 531;
 	}
 	
 	//подменю Sens2 body LOW/HIGH level sensor
-	if(menu == 53111)
+	if(menu == 5311)
 	{
 		for (qNum = 3; qNum < 4; qNum++)
 		{
@@ -567,9 +631,9 @@ void loop()
 			sens1_tForSet();
 		} 
 		lcd.clear();
-		menu = 5311;
+		menu = 531;
 	}
-	if(menu == 53121)
+	if(menu == 5321)
 	{
 		for (qNum = 4; qNum < 5; qNum++)
 		{
@@ -579,8 +643,22 @@ void loop()
 			sens1_tForSet();
 		} 
 		lcd.clear();
-		menu = 5311;
+		menu = 531;
 	}
+	
+	if(menu == 541)
+	{
+		for (qNum = 5; qNum < 6; qNum++)
+		{
+			lcd.setCursor(0,0);
+			lcd.print(question[qNum]);
+			keyIn = 0;
+			sens1_tForSet();
+		} 
+		lcd.clear();
+		menu = 1;
+	}
+	
 }
 
 
@@ -615,7 +693,7 @@ void dsRead()
 		lcd.print(ds.getTempCByIndex(1));
 		lcd.print("C");
 	}
-	if (menu==311&&head_state==1 || menu==311&&head_state==2)
+	if (menu==311&&head_state==1 || menu==311&&head_state==2 || menu==331)
 	{
 		ds.requestTemperatures(); // считываем температуру с датчиков
 		readSens1 = ds.getTempCByIndex(0);
@@ -670,6 +748,11 @@ void sens1_tForSet()
 		maxVar = 100; 
 		minVar = 20;
 		break;
+	case 5:
+		tempVar = sens_t1_tails; 
+		maxVar = 100; 
+		minVar = 20;
+		break;
 	}
 
   lcd.setCursor(0,1);
@@ -701,6 +784,9 @@ void sens1_tForSet()
 			break;
 		case 4:
 			sens_t2_b_high = tempVar;
+			break;
+		case 5:
+			sens_t1_tails = tempVar;
 		}
 		keyIn = 4;
 	} 
@@ -716,6 +802,7 @@ void sens1_tForSet()
 		EEPROM.write(2, sens_t1_b);//Записываем в EEPROM новое значение
 		EEPROM.write(3, sens_t2_b_low);//Записываем в EEPROM новое значение
 		EEPROM.write(4, sens_t2_b_high);//Записываем в EEPROM новое значение
+		EEPROM.write(5, sens_t1_tails);//Записываем в EEPROM новое значение
 		delay(500);
 	}
 	delay(50);
@@ -765,6 +852,10 @@ void displayVars()
 		lcd.print(tempVar + spaceChar);
 		break;
 	case 4:
+		move_possible();
+		lcd.setCursor(7, 1);
+		lcd.print(tempVar + spaceChar);
+	case 5:
 		move_possible();
 		lcd.setCursor(7, 1);
 		lcd.print(tempVar + spaceChar);
