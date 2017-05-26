@@ -1,0 +1,125 @@
+/*****************************************************
+This program was produced by the
+CodeWizardAVR V2.05.0 Professional
+Automatic Program Generator
+© Copyright 1998-2010 Pavel Haiduc, HP InfoTech s.r.l.
+http://www.hpinfotech.com
+
+Project : 
+Version : 
+Date    : 26.08.2015
+Author  : 
+Company : 
+Comments: 
+
+
+Chip type               : ATtiny13A
+AVR Core Clock frequency: 9,600000 MHz
+Memory model            : Tiny
+External RAM size       : 0
+Data Stack size         : 16
+*****************************************************/
+
+#include <tiny13a.h>
+
+#include <delay.h>
+
+#define ADC_VREF_TYPE 0x20
+
+// Read the 8 most significant bits
+// of the AD conversion result
+unsigned char read_adc(unsigned char adc_input)
+{
+ADMUX=adc_input | (ADC_VREF_TYPE & 0xff);
+// Delay needed for the stabilization of the ADC input voltage
+delay_us(10);
+// Start the AD conversion
+ADCSRA|=0x40;
+// Wait for the AD conversion to complete
+while ((ADCSRA & 0x10)==0);
+ADCSRA|=0x10;
+return ADCH;
+}
+
+// Declare your global variables here
+unsigned char val1;
+unsigned char val2;
+
+void upd_adc()
+{
+val1 = read_adc(2);
+val2 = read_adc(3);
+}
+
+#define in_band (val1>30 && val1<50 && val2>30 && val2<50)
+void main(void)
+{
+// Declare your local variables here
+
+// Crystal Oscillator division factor: 1
+#pragma optsize-
+CLKPR=0x80;
+CLKPR=0x00;
+#ifdef _OPTIMIZE_SIZE_
+#pragma optsize+
+#endif
+
+// Input/Output Ports initialization
+// Port B initialization
+// Func5=In Func4=In Func3=In Func2=In Func1=In Func0=Out 
+// State5=T State4=T State3=T State2=T State1=T State0=1 
+PORTB=0x01;
+DDRB=0x01;
+
+// Timer/Counter 0 initialization
+// Clock source: System Clock
+// Clock value: Timer 0 Stopped
+// Mode: Normal top=0xFF
+// OC0A output: Disconnected
+// OC0B output: Disconnected
+TCCR0A=0x00;
+TCCR0B=0x00;
+TCNT0=0x00;
+OCR0A=0x00;
+OCR0B=0x00;
+
+// External Interrupt(s) initialization
+// INT0: Off
+// Interrupt on any change on pins PCINT0-5: Off
+GIMSK=0x00;
+MCUCR=0x00;
+
+// Timer/Counter 0 Interrupt(s) initialization
+TIMSK0=0x00;
+
+// Analog Comparator initialization
+// Analog Comparator: Off
+ACSR=0x80;
+ADCSRB=0x00;
+DIDR0=0x00;
+
+// ADC initialization
+// ADC Clock frequency: 600,000 kHz
+// ADC Bandgap Voltage Reference: Off
+// ADC Auto Trigger Source: ADC Stopped
+// Only the 8 most significant bits of
+// the AD conversion result are used
+// Digital input buffers on ADC0: On, ADC1: On, ADC2: On, ADC3: On
+DIDR0&=0x03;
+DIDR0|=0x00;
+ADMUX=ADC_VREF_TYPE & 0xff;
+ADCSRA=0x84;
+
+while (1)
+      {
+      upd_adc();
+      if (in_band)
+      {
+      delay_ms(100);
+      if (in_band)
+      {
+      PORTB.0 = 0;
+      }
+      }
+      }
+}

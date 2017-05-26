@@ -1,0 +1,10 @@
+VERSION:3 SOURCE_TIMESTAMP:471A7DF9
+NODE:I LEVEL:0 LINE:23 "C:\cvavreval\inc\tiny13a.h"
+NODE:I LEVEL:0 LINE:25 "C:\cvavreval\inc\delay.h"
+NODE:M LEVEL:0 LINE:27 "ADC_VREF_TYPE"
+NODE:F LEVEL:0 LINE:31 "read_adc(unsigned char adc_input)"
+NODE:V LEVEL:0 LINE:45 "val1 -> R4"
+NODE:V LEVEL:0 LINE:46 "val2 -> R5"
+NODE:F LEVEL:0 LINE:48 "upd_adc(void)"
+NODE:M LEVEL:0 LINE:54 "in_band"
+NODE:F LEVEL:0 LINE:55 "main(void)"
